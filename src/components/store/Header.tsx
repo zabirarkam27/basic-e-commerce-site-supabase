@@ -86,7 +86,7 @@ export function Header() {
             className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-xs font-semibold transition-colors hover:bg-secondary sm:px-3"
           >
             <Languages className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{lang === "bn" ? "বাং" : "EN"}</span>
+            <span>{lang === "bn" ? "BN" : "EN"}</span>
           </button>
 
           <button

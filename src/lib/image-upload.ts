@@ -7,7 +7,6 @@ export type UploadResult = {
 };
 
 const MAX_BYTES = 15 * 1024 * 1024;
-const MAX_DIMENSION = 1920;
 const QUALITY = 0.82;
 
 function extensionFor(contentType: string, fileName: string) {
@@ -35,9 +34,9 @@ async function blobToBase64(blob: Blob) {
 }
 
 /**
- * Encode an image File to WebP in the browser using canvas, capped at
- * MAX_DIMENSION on the longest edge. Falls back to the original file if
- * encoding is not supported (e.g. SVG/GIF or canvas WebP unavailable).
+ * Encode an image File to WebP in the browser using canvas while preserving
+ * the uploaded pixel dimensions. Falls back to the original file if encoding
+ * is not supported (e.g. SVG/GIF or canvas WebP unavailable).
  */
 async function encodeToWebp(file: File): Promise<{ blob: Blob; ext: string; contentType: string }> {
   if (file.type === "image/svg+xml" || file.type === "image/gif") {
@@ -57,16 +56,12 @@ async function encodeToWebp(file: File): Promise<{ blob: Blob; ext: string; cont
       el.src = url;
     });
 
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
-    const w = Math.max(1, Math.round(img.width * scale));
-    const h = Math.max(1, Math.round(img.height * scale));
-
     const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = img.width;
+    canvas.height = img.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D context unavailable");
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.drawImage(img, 0, 0, img.width, img.height);
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob((b) => resolve(b), "image/webp", QUALITY),

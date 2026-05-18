@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Order, OrderStatus } from "@/lib/store-types";
+import type { Order, OrderStatus, SiteSession } from "@/lib/store-types";
 import { formatBDT } from "@/lib/store-types";
 import {
   Copy,
@@ -24,6 +24,7 @@ import {
   Loader2,
   Phone,
   MessageCircle,
+  ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -73,6 +74,8 @@ export function OrdersTable({ orders, refetch }: { orders: Order[]; refetch: () 
   const [source, setSource] = useState<string>("All");
   const [landingSlugs, setLandingSlugs] = useState<LandingInfo[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pushingId, setPushingId] = useState<string | null>(null);
   const { settings } = useSiteSettings();
@@ -135,6 +138,15 @@ export function OrdersTable({ orders, refetch }: { orders: Order[]; refetch: () 
       return true;
     });
   }, [orders, filter, query, fromDate, toDate, source]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, query, fromDate, toDate, source, orders.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+  const pageRows = filtered.slice(pageStart, pageStart + pageSize);
 
   const sourceCounts = useMemo(() => {
     let main = 0;
@@ -408,7 +420,7 @@ export function OrdersTable({ orders, refetch }: { orders: Order[]; refetch: () 
                   </td>
                 </tr>
               )}
-              {filtered.map((o) => {
+              {pageRows.map((o) => {
                 const isOpen = expanded === o.id;
                 const lp = o.landing_page_slug ? landingBySlug.get(o.landing_page_slug) : null;
                 const toggle = () => setExpanded(isOpen ? null : o.id);
@@ -542,6 +554,54 @@ export function OrdersTable({ orders, refetch }: { orders: Order[]; refetch: () 
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-muted-foreground">
+              Showing {pageStart + 1}-{Math.min(pageStart + pageSize, filtered.length)} of{" "}
+              {filtered.length} orders
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                Rows
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="rounded-lg border border-input bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-primary"
+                >
+                  {[10, 25, 50, 100].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-50"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Prev
+              </button>
+              <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold">
+                Page {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-50"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -710,6 +770,7 @@ function OrderDetails({
       </div>
 
       <FraudPanel phone={order.mobile} />
+      <CustomerSessionDetails order={order} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-3">
@@ -831,6 +892,135 @@ function OrderDetails({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "0s";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+
+  if (hrs > 0) return `${hrs}h ${remMins}m`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
+}
+
+function sessionDuration(session: SiteSession) {
+  const start = new Date(session.first_seen_at).getTime();
+  const end = new Date(session.last_seen_at).getTime();
+  return Math.max(0, Math.round((end - start) / 1000));
+}
+
+function orderPlacingDuration(order: Order, session: SiteSession) {
+  if (session.order_duration_seconds !== null) return session.order_duration_seconds;
+  if (!session.checkout_started_at) return null;
+
+  const start = new Date(session.checkout_started_at).getTime();
+  const end = new Date(order.created_at).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+
+  return Math.round((end - start) / 1000);
+}
+
+function pickOrderSession(order: Order, sessions: SiteSession[]) {
+  const orderTs = new Date(order.created_at).getTime();
+
+  return [...sessions].sort((a, b) => {
+    const aTs = new Date(a.order_placed_at ?? a.last_seen_at).getTime();
+    const bTs = new Date(b.order_placed_at ?? b.last_seen_at).getTime();
+    return Math.abs(aTs - orderTs) - Math.abs(bTs - orderTs);
+  })[0];
+}
+
+function mobileCandidates(mobile: string) {
+  const raw = mobile.replace(/\D/g, "");
+  const local = raw.startsWith("880") ? `0${raw.slice(3)}` : raw;
+  const intl = raw.startsWith("880") ? raw : `880${raw.replace(/^0+/, "")}`;
+  return [...new Set([mobile, raw, local, intl].filter(Boolean))];
+}
+
+function CustomerSessionDetails({ order }: { order: Order }) {
+  const [session, setSession] = useState<SiteSession | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+
+    (async () => {
+      const { data } = await supabase
+        .from("site_sessions")
+        .select("*")
+        .in("mobile", mobileCandidates(order.mobile))
+        .order("last_seen_at", { ascending: false })
+        .limit(20);
+
+      if (!mounted) return;
+      setSession(pickOrderSession(order, (data as SiteSession[] | null) ?? []) ?? null);
+      setLoading(false);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [order]);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Customer site activity
+      </div>
+      {loading ? (
+        <div className="text-sm text-muted-foreground">Loading customer session…</div>
+      ) : !session ? (
+        <div className="text-sm text-muted-foreground">
+          No matching analytics session found for this customer yet.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <div className="text-xs font-medium text-muted-foreground">Website visiting time</div>
+              <div className="mt-1 text-xl font-bold text-primary">
+                {formatDuration(sessionDuration(session))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-success/20 bg-success/5 p-3">
+              <div className="text-xs font-medium text-muted-foreground">Order placing time</div>
+              <div className="mt-1 text-xl font-bold text-success">
+                {(() => {
+                  const duration = orderPlacingDuration(order, session);
+                  return duration !== null ? formatDuration(duration) : "Not captured";
+                })()}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <div className="text-xs text-muted-foreground">Order placed at</div>
+              <div className="font-semibold">{new Date(order.created_at).toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">First seen</div>
+              <div className="font-semibold">
+                {new Date(session.first_seen_at).toLocaleString()}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Last seen</div>
+              <div className="font-semibold">{new Date(session.last_seen_at).toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Last page</div>
+              <div className="truncate font-semibold">{session.current_path || "/"}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

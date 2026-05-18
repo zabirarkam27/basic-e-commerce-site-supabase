@@ -175,6 +175,60 @@ export type Database = {
           },
         ];
       };
+      checkout_leads: {
+        Row: {
+          address: string | null;
+          area: string | null;
+          cart_items: Json;
+          created_at: string;
+          customer_name: string | null;
+          delivery_charge: number;
+          id: string;
+          landing_page_slug: string | null;
+          last_seen_at: string;
+          mobile: string | null;
+          session_id: string;
+          status: string;
+          subtotal: number;
+          total: number;
+          updated_at: string;
+        };
+        Insert: {
+          address?: string | null;
+          area?: string | null;
+          cart_items?: Json;
+          created_at?: string;
+          customer_name?: string | null;
+          delivery_charge?: number;
+          id?: string;
+          landing_page_slug?: string | null;
+          last_seen_at?: string;
+          mobile?: string | null;
+          session_id: string;
+          status?: string;
+          subtotal?: number;
+          total?: number;
+          updated_at?: string;
+        };
+        Update: {
+          address?: string | null;
+          area?: string | null;
+          cart_items?: Json;
+          created_at?: string;
+          customer_name?: string | null;
+          delivery_charge?: number;
+          id?: string;
+          landing_page_slug?: string | null;
+          last_seen_at?: string;
+          mobile?: string | null;
+          session_id?: string;
+          status?: string;
+          subtotal?: number;
+          total?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       orders: {
         Row: {
           address: string;
@@ -419,6 +473,60 @@ export type Database = {
           key?: string;
           updated_at?: string;
           value?: Json;
+        };
+        Relationships: [];
+      };
+      site_sessions: {
+        Row: {
+          checkout_started_at: string | null;
+          created_at: string;
+          current_path: string | null;
+          customer_name: string | null;
+          first_seen_at: string;
+          id: string;
+          landing_page_slug: string | null;
+          last_seen_at: string;
+          mobile: string | null;
+          order_duration_seconds: number | null;
+          order_placed_at: string | null;
+          referrer: string | null;
+          session_id: string;
+          updated_at: string;
+          user_agent: string | null;
+        };
+        Insert: {
+          checkout_started_at?: string | null;
+          created_at?: string;
+          current_path?: string | null;
+          customer_name?: string | null;
+          first_seen_at?: string;
+          id?: string;
+          landing_page_slug?: string | null;
+          last_seen_at?: string;
+          mobile?: string | null;
+          order_duration_seconds?: number | null;
+          order_placed_at?: string | null;
+          referrer?: string | null;
+          session_id: string;
+          updated_at?: string;
+          user_agent?: string | null;
+        };
+        Update: {
+          checkout_started_at?: string | null;
+          created_at?: string;
+          current_path?: string | null;
+          customer_name?: string | null;
+          first_seen_at?: string;
+          id?: string;
+          landing_page_slug?: string | null;
+          last_seen_at?: string;
+          mobile?: string | null;
+          order_duration_seconds?: number | null;
+          order_placed_at?: string | null;
+          referrer?: string | null;
+          session_id?: string;
+          updated_at?: string;
+          user_agent?: string | null;
         };
         Relationships: [];
       };

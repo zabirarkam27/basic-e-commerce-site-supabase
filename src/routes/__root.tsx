@@ -9,8 +9,16 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { SiteAnalyticsTracker } from "@/components/analytics/SiteAnalyticsTracker";
 import { SiteSettingsProvider } from "@/lib/site-settings";
 import { I18nProvider } from "@/lib/i18n";
+
+const SITE_NAME = "Noor Honey";
+const SITE_TITLE = "Noor Honey — Pure Sundarbans Honey";
+const SITE_DESCRIPTION =
+  "Raw, unfiltered honey hand-harvested from the Sundarbans. Cash on delivery across Bangladesh. Order online in 30 seconds.";
+const SITE_URL = "https://basic-e-commerce-site-supabase.vercel.app/";
+const FALLBACK_FAVICON = "/noor-honey-favicon.svg";
 
 function NotFoundComponent() {
   return (
@@ -74,39 +82,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Noor Honey — Pure Sundarbans Honey" },
-      {
-        name: "description",
-        content:
-          "Raw, unfiltered honey hand-harvested from the Sundarbans. Cash on delivery across Bangladesh. Order online in 30 seconds.",
-      },
-      { name: "author", content: "Noor Honey" },
-      { property: "og:title", content: "Noor Honey — Pure Sundarbans Honey" },
-      {
-        property: "og:description",
-        content:
-          "Raw, unfiltered honey hand-harvested from the Sundarbans. Cash on delivery across Bangladesh.",
-      },
+
+      { title: SITE_TITLE },
+      { name: "description", content: SITE_DESCRIPTION },
+      { name: "author", content: SITE_NAME },
+
+      { property: "og:title", content: SITE_TITLE },
+      { property: "og:description", content: SITE_DESCRIPTION },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: SITE_URL },
+      { property: "og:site_name", content: SITE_NAME },
+
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "Prooit ( Tarif Hr 01317263237 )" },
-      {
-        property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/65fb5be0-2229-4138-84b6-e00905079818/id-preview-074414d9--d6243d84-15ef-41fd-9393-953740b27329.lovable.app-1778930727492.png",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/65fb5be0-2229-4138-84b6-e00905079818/id-preview-074414d9--d6243d84-15ef-41fd-9393-953740b27329.lovable.app-1778930727492.png",
-      },
+      { name: "twitter:title", content: SITE_TITLE },
+      { name: "twitter:description", content: SITE_DESCRIPTION },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "icon",
+        type: "image/svg+xml",
+        href: FALLBACK_FAVICON,
+      },
+      {
+        rel: "apple-touch-icon",
+        href: FALLBACK_FAVICON,
       },
     ],
   }),
@@ -137,6 +140,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
         <SiteSettingsProvider>
+          <SiteAnalyticsTracker />
           <Outlet />
         </SiteSettingsProvider>
       </I18nProvider>

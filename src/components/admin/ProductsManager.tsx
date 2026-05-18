@@ -47,6 +47,21 @@ const EMPTY_DRAFT: Draft = {
   variants: [],
 };
 
+function normalizeHexColor(value: string | null | undefined) {
+  const color = (value ?? "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+  if (/^[0-9a-f]{6}$/i.test(color)) return `#${color}`;
+  if (/^#[0-9a-f]{3}$/i.test(color)) {
+    const [, r, g, b] = color;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  if (/^[0-9a-f]{3}$/i.test(color)) {
+    const [r, g, b] = color;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return "";
+}
+
 export function ProductsManager() {
   const [products, setProducts] = useState<FullProduct[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -169,11 +184,11 @@ export function ProductsManager() {
     // Replace variants
     await supabase.from("product_variants").delete().eq("product_id", productId!);
     const cleaned = editing.variants
-      .filter((v) => v.color_name || v.size_label)
+      .filter((v) => v.color_name || v.color_hex || v.size_label || v.image_url)
       .map((v, i) => ({
         product_id: productId!,
         color_name: v.color_name || null,
-        color_hex: v.color_hex || null,
+        color_hex: normalizeHexColor(v.color_hex) || null,
         size_label: v.size_label || null,
         price_override: v.price_override ? Number(v.price_override) : null,
         image_url: v.image_url || null,
@@ -276,77 +291,79 @@ export function ProductsManager() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-        <table className="w-full text-sm">
-          <thead className="bg-secondary/60 text-xs uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3 text-left">Product</th>
-              <th className="px-4 py-3 text-right">Price</th>
-              <th className="px-4 py-3 text-left">Variants</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {products.map((p) => (
-              <tr key={p.id} className="hover:bg-secondary/30">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <img src={p.image_url} alt="" className="h-12 w-12 rounded-lg object-cover" />
-                    <div className="font-medium">{p.title}</div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="font-semibold text-primary">{formatBDT(p.sale_price)}</div>
-                  <div className="text-xs text-muted-foreground line-through">
-                    {formatBDT(p.regular_price)}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">
-                  {p.variants.length} variant{p.variants.length === 1 ? "" : "s"}
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-xs font-medium",
-                      p.active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {p.active ? "Active" : "Hidden"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => toggleFeatured(p)}
-                      className={cn(
-                        "grid h-8 w-8 place-items-center rounded-full hover:bg-secondary",
-                        p.featured && "text-warning",
-                      )}
-                      aria-label={p.featured ? "Unfeature" : "Mark as featured"}
-                      title={p.featured ? "Remove from Featured" : "Add to Featured"}
-                    >
-                      <Star className={cn("h-4 w-4", p.featured && "fill-warning")} />
-                    </button>
-                    <button
-                      onClick={() => openEdit(p)}
-                      className="grid h-8 w-8 place-items-center rounded-full hover:bg-secondary"
-                      aria-label="Edit"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(p.id)}
-                      className="grid h-8 w-8 place-items-center rounded-full text-destructive hover:bg-destructive/10"
-                      aria-label="Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="min-w-[720px] w-full text-sm">
+            <thead className="bg-secondary/60 text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 text-left">Product</th>
+                <th className="px-4 py-3 text-right">Price</th>
+                <th className="px-4 py-3 text-left">Variants</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {products.map((p) => (
+                <tr key={p.id} className="hover:bg-secondary/30">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <img src={p.image_url} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                      <div className="font-medium">{p.title}</div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="font-semibold text-primary">{formatBDT(p.sale_price)}</div>
+                    <div className="text-xs text-muted-foreground line-through">
+                      {formatBDT(p.regular_price)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {p.variants.length} variant{p.variants.length === 1 ? "" : "s"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-xs font-medium",
+                        p.active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {p.active ? "Active" : "Hidden"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => toggleFeatured(p)}
+                        className={cn(
+                          "grid h-8 w-8 place-items-center rounded-full hover:bg-secondary",
+                          p.featured && "text-warning",
+                        )}
+                        aria-label={p.featured ? "Unfeature" : "Mark as featured"}
+                        title={p.featured ? "Remove from Featured" : "Add to Featured"}
+                      >
+                        <Star className={cn("h-4 w-4", p.featured && "fill-warning")} />
+                      </button>
+                      <button
+                        onClick={() => openEdit(p)}
+                        className="grid h-8 w-8 place-items-center rounded-full hover:bg-secondary"
+                        aria-label="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(p.id)}
+                        className="grid h-8 w-8 place-items-center rounded-full text-destructive hover:bg-destructive/10"
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {editing && (
@@ -546,12 +563,25 @@ function EditorDialog({
                     onChange={(e) => updVariant(i, { color_name: e.target.value })}
                     className="input"
                   />
-                  <input
-                    placeholder="#hex"
-                    value={v.color_hex}
-                    onChange={(e) => updVariant(i, { color_hex: e.target.value })}
-                    className="input"
-                  />
+                  <div className="flex items-center gap-2 rounded-xl border border-input bg-background px-2 py-1.5 focus-within:border-primary focus-within:shadow-[0_0_0_3px_oklch(0.66_0.21_27_/_0.18)]">
+                    <input
+                      type="color"
+                      value={normalizeHexColor(v.color_hex) || "#ef4444"}
+                      onChange={(e) => updVariant(i, { color_hex: e.target.value })}
+                      className="h-8 w-9 cursor-pointer rounded-md border-0 bg-transparent p-0"
+                      aria-label="Pick variant color"
+                    />
+                    <input
+                      placeholder="#hex"
+                      value={v.color_hex}
+                      onChange={(e) => updVariant(i, { color_hex: e.target.value })}
+                      onBlur={(e) =>
+                        updVariant(i, { color_hex: normalizeHexColor(e.target.value) })
+                      }
+                      className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none"
+                      aria-label="Variant color hex code"
+                    />
+                  </div>
                   <input
                     placeholder="Size/Weight (e.g. 500g)"
                     value={v.size_label}

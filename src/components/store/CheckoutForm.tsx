@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Minus, Plus, Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -7,6 +8,10 @@ import { formatBDT, variantPrice, variantImage } from "@/lib/store-types";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { saveAnalyticsSession } from "@/lib/analytics.functions";
+import { getAnalyticsSessionId } from "@/lib/analytics-session";
+import { saveCheckoutLead } from "@/lib/checkout-leads.functions";
+import { trackBeginCheckout, trackPurchase } from "@/lib/tracking-events";
 
 const OrderSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -22,12 +27,35 @@ type Props = {
   deliveryOutside: number;
 };
 
+const CHECKOUT_SESSION_KEY = "noor_honey_checkout_session";
+
+function getCheckoutSessionId() {
+  if (typeof window === "undefined") return null;
+
+  const existing = window.localStorage.getItem(CHECKOUT_SESSION_KEY);
+  if (existing) return existing;
+
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `lead_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  window.localStorage.setItem(CHECKOUT_SESSION_KEY, id);
+  return id;
+}
+
 export function CheckoutForm({ deliveryInside, deliveryOutside }: Props) {
   const { items, setItemQuantity, removeItem, clear, landingSlug } = useStore();
   const { t } = useI18n();
+  const saveLead = useServerFn(saveCheckoutLead);
+  const saveSession = useServerFn(saveAnalyticsSession);
   const [area, setArea] = useState<"inside" | "outside">("inside");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [formDraft, setFormDraft] = useState({ name: "", mobile: "", address: "" });
+  const sessionIdRef = useRef<string | null>(null);
+  const analyticsSessionIdRef = useRef<string | null>(null);
+  const checkoutStartedRef = useRef(false);
 
   const deliveryCharge = area === "inside" ? deliveryInside : deliveryOutside;
   const hasItems = items.length > 0;
@@ -37,6 +65,91 @@ export function CheckoutForm({ deliveryInside, deliveryOutside }: Props) {
     0,
   );
   const total = subtotal + (hasItems ? deliveryCharge : 0);
+
+  useEffect(() => {
+    analyticsSessionIdRef.current = getAnalyticsSessionId();
+    sessionIdRef.current = analyticsSessionIdRef.current ?? getCheckoutSessionId();
+  }, []);
+
+  const buildLeadPayload = useCallback(
+    (status: "draft" | "converted") => {
+      const sessionId = sessionIdRef.current;
+      if (!sessionId || !hasItems) return null;
+
+      return {
+        session_id: sessionId,
+        customer_name: formDraft.name,
+        mobile: formDraft.mobile,
+        address: formDraft.address,
+        area: area === "inside" ? "Inside Dhaka" : "Outside Dhaka",
+        delivery_charge: deliveryCharge,
+        subtotal,
+        total,
+        landing_page_slug: landingSlug,
+        status,
+        cart_items: items.map((it) => {
+          const unit = variantPrice(it.product, it.variant);
+          return {
+            product_id: it.product.id,
+            product_title: it.product.title,
+            product_image: variantImage(it.product, it.variant),
+            variant_label:
+              [it.variant?.color_name, it.variant?.size_label].filter(Boolean).join(" • ") || null,
+            unit_price: unit,
+            quantity: it.quantity,
+            line_total: unit * it.quantity,
+          };
+        }),
+      };
+    },
+    [area, deliveryCharge, formDraft, hasItems, items, landingSlug, subtotal, total],
+  );
+
+  useEffect(() => {
+    const hasCustomerSignal =
+      formDraft.name.trim().length >= 2 ||
+      formDraft.mobile.trim().length >= 3 ||
+      formDraft.address.trim().length >= 5;
+
+    if (!hasItems || done || !hasCustomerSignal) return;
+
+    if (!checkoutStartedRef.current && analyticsSessionIdRef.current) {
+      checkoutStartedRef.current = true;
+      trackBeginCheckout(items, total);
+      saveSession({
+        data: {
+          session_id: analyticsSessionIdRef.current,
+          current_path: window.location.pathname,
+          landing_page_slug: landingSlug,
+          referrer: document.referrer || null,
+          user_agent: navigator.userAgent || null,
+          customer_name: formDraft.name,
+          mobile: formDraft.mobile,
+          checkout_started: true,
+        },
+      }).catch(() => {});
+    }
+
+    const timer = window.setTimeout(() => {
+      const payload = buildLeadPayload("draft");
+      if (!payload) return;
+      saveLead({ data: payload }).catch(() => {});
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    buildLeadPayload,
+    done,
+    formDraft.address,
+    formDraft.mobile,
+    formDraft.name,
+    hasItems,
+    items,
+    landingSlug,
+    saveLead,
+    saveSession,
+    total,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -91,16 +204,39 @@ export function CheckoutForm({ deliveryInside, deliveryOutside }: Props) {
       };
     });
 
-    const { error } = await supabase.from("orders").insert(rows);
+    const { data: insertedOrders, error } = await supabase.from("orders").insert(rows).select("*");
     setSubmitting(false);
     if (error) {
       toast.error(error.message);
       return;
     }
     setDone(true);
+    const orderRows = (insertedOrders ?? rows) as typeof rows;
+    trackPurchase(
+      orderRows,
+      total,
+      orderRows[0]?.id ?? sessionIdRef.current ?? crypto.randomUUID(),
+    );
+    const leadPayload = buildLeadPayload("converted");
+    if (leadPayload) saveLead({ data: leadPayload }).catch(() => {});
+    if (analyticsSessionIdRef.current) {
+      saveSession({
+        data: {
+          session_id: analyticsSessionIdRef.current,
+          current_path: window.location.pathname,
+          landing_page_slug: landingSlug,
+          referrer: document.referrer || null,
+          user_agent: navigator.userAgent || null,
+          customer_name: parsed.data.name,
+          mobile: parsed.data.mobile,
+          order_placed: true,
+        },
+      }).catch(() => {});
+    }
     toast.success(t("checkout.toast_success"));
     setTimeout(() => {
       clear();
+      setFormDraft({ name: "", mobile: "", address: "" });
       setDone(false);
       (e.target as HTMLFormElement).reset();
     }, 3000);
@@ -190,6 +326,8 @@ export function CheckoutForm({ deliveryInside, deliveryOutside }: Props) {
             <Field
               label={t("checkout.name")}
               name="name"
+              value={formDraft.name}
+              onChange={(e) => setFormDraft((prev) => ({ ...prev, name: e.target.value }))}
               placeholder={t("checkout.name_placeholder")}
               required
             />
@@ -197,6 +335,8 @@ export function CheckoutForm({ deliveryInside, deliveryOutside }: Props) {
               label={t("checkout.mobile")}
               name="mobile"
               type="tel"
+              value={formDraft.mobile}
+              onChange={(e) => setFormDraft((prev) => ({ ...prev, mobile: e.target.value }))}
               placeholder="01XXXXXXXXX"
               required
             />
@@ -204,6 +344,8 @@ export function CheckoutForm({ deliveryInside, deliveryOutside }: Props) {
               <label className="mb-1.5 block text-sm font-medium">{t("checkout.address")}</label>
               <textarea
                 name="address"
+                value={formDraft.address}
+                onChange={(e) => setFormDraft((prev) => ({ ...prev, address: e.target.value }))}
                 required
                 rows={3}
                 placeholder={t("checkout.address_placeholder")}

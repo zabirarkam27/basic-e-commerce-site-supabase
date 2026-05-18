@@ -70,6 +70,54 @@ export type Order = {
   courier_note?: string | null;
 };
 
+export type CheckoutLeadStatus = "draft" | "contacted" | "converted" | "ignored";
+
+export type CheckoutLeadCartItem = {
+  product_id: string;
+  product_title: string;
+  product_image: string | null;
+  variant_label: string | null;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+};
+
+export type CheckoutLead = {
+  id: string;
+  session_id: string;
+  customer_name: string | null;
+  mobile: string | null;
+  address: string | null;
+  area: string | null;
+  delivery_charge: number;
+  subtotal: number;
+  total: number;
+  landing_page_slug: string | null;
+  cart_items: CheckoutLeadCartItem[];
+  status: CheckoutLeadStatus;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SiteSession = {
+  id: string;
+  session_id: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  current_path: string | null;
+  landing_page_slug: string | null;
+  referrer: string | null;
+  user_agent: string | null;
+  customer_name: string | null;
+  mobile: string | null;
+  checkout_started_at: string | null;
+  order_placed_at: string | null;
+  order_duration_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CartItem = {
   /** Stable per-line key (product.id + variant.id) so we can dedupe / update. */
   key: string;

@@ -215,67 +215,69 @@ export function LandingPagesManager() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/40 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-left">Title</th>
-                <th className="px-4 py-3 text-left">Slug</th>
-                <th className="px-4 py-3 text-left">Product</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {pages.map((p) => {
-                const productTitle = products.find((x) => x.id === p.product_id)?.title;
-                return (
-                  <tr key={p.id} className="border-t border-border/60">
-                    <td className="px-4 py-3 font-medium">{p.title}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                      /p/{p.slug}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{productTitle ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={
-                          p.active
-                            ? "rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-semibold text-success"
-                            : "rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground"
-                        }
-                      >
-                        {p.active ? "Live" : "Draft"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <IconBtn title="Copy URL" onClick={() => copyUrl(p.slug)}>
-                          <Copy className="h-3.5 w-3.5" />
-                        </IconBtn>
-                        <Link
-                          to="/p/$slug"
-                          params={{ slug: p.slug }}
-                          target="_blank"
-                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary"
-                          title="Open"
+          <div className="overflow-x-auto">
+            <table className="min-w-[760px] w-full text-sm">
+              <thead className="bg-secondary/40 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 text-left">Title</th>
+                  <th className="px-4 py-3 text-left">Slug</th>
+                  <th className="px-4 py-3 text-left">Product</th>
+                  <th className="px-4 py-3 text-left">Status</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {pages.map((p) => {
+                  const productTitle = products.find((x) => x.id === p.product_id)?.title;
+                  return (
+                    <tr key={p.id} className="border-t border-border/60">
+                      <td className="px-4 py-3 font-medium">{p.title}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                        /p/{p.slug}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{productTitle ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={
+                            p.active
+                              ? "rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-semibold text-success"
+                              : "rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground"
+                          }
                         >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Link>
-                        <IconBtn title="Toggle status" onClick={() => toggleActive(p)}>
-                          <Power className="h-3.5 w-3.5" />
-                        </IconBtn>
-                        <IconBtn title="Edit" onClick={() => openEdit(p)}>
-                          <span className="text-xs font-semibold">Edit</span>
-                        </IconBtn>
-                        <IconBtn title="Delete" onClick={() => remove(p.id)} danger>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </IconBtn>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          {p.active ? "Live" : "Draft"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <IconBtn title="Copy URL" onClick={() => copyUrl(p.slug)}>
+                            <Copy className="h-3.5 w-3.5" />
+                          </IconBtn>
+                          <Link
+                            to="/p/$slug"
+                            params={{ slug: p.slug }}
+                            target="_blank"
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary"
+                            title="Open"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                          <IconBtn title="Toggle status" onClick={() => toggleActive(p)}>
+                            <Power className="h-3.5 w-3.5" />
+                          </IconBtn>
+                          <IconBtn title="Edit" onClick={() => openEdit(p)}>
+                            <span className="text-xs font-semibold">Edit</span>
+                          </IconBtn>
+                          <IconBtn title="Delete" onClick={() => remove(p.id)} danger>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </IconBtn>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

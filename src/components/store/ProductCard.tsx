@@ -5,6 +5,7 @@ import { useStore, smoothScrollTo } from "@/lib/store-context";
 import { useSiteSettings } from "@/lib/site-settings";
 import { useI18n } from "@/lib/i18n";
 import { ResponsiveImage } from "@/lib/responsive-image";
+import { trackAddToCart } from "@/lib/tracking-events";
 
 type Props = {
   product: ProductWithVariants;
@@ -21,10 +22,12 @@ export function ProductCard({ product, onQuickView, priority = false }: Props) {
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     addItem(product);
+    trackAddToCart(product, product.variants[0] ?? null);
   };
 
   const handleOrder = () => {
     addItem(product);
+    trackAddToCart(product, product.variants[0] ?? null);
     smoothScrollTo("checkout");
   };
 

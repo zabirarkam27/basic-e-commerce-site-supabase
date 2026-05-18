@@ -88,6 +88,14 @@ const WhyUsManager = lazyWithReload(
   () => import("@/components/admin/WhyUsManager"),
   (m) => m.WhyUsManager,
 );
+const CheckoutLeadsPanel = lazyWithReload(
+  () => import("@/components/admin/CheckoutLeadsPanel"),
+  (m) => m.CheckoutLeadsPanel,
+);
+const AnalyticsPanel = lazyWithReload(
+  () => import("@/components/admin/AnalyticsPanel"),
+  (m) => m.AnalyticsPanel,
+);
 
 type Role = "super_admin" | "admin" | "sales" | "viewer";
 
@@ -115,6 +123,7 @@ import {
   Receipt,
   Settings,
   Bell,
+  ShoppingCart,
   Sparkles,
   Users,
   Tags,
@@ -124,6 +133,7 @@ import {
   Award,
   ExternalLink,
   Truck,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -140,7 +150,9 @@ export const Route = createFileRoute("/admin")({
 
 type Tab =
   | "overview"
+  | "analytics"
   | "orders"
+  | "leads"
   | "products"
   | "catalog"
   | "reviews"
@@ -454,7 +466,9 @@ function Dashboard({ roles, userId }: { roles: Role[]; userId: string }) {
     visible: boolean;
   }[] = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, visible: true },
+    { id: "analytics", label: "Analytics", icon: BarChart3, visible: true },
     { id: "orders", label: "Orders", icon: Receipt, visible: true },
+    { id: "leads", label: "Checkout Leads", icon: ShoppingCart, visible: true },
     { id: "products", label: "Products", icon: Package, visible: canProducts },
     { id: "catalog", label: "Catalog", icon: Tags, visible: canProducts },
     { id: "reviews", label: "Reviews", icon: MessageSquare, visible: canSettings },
@@ -549,6 +563,16 @@ function Dashboard({ roles, userId }: { roles: Role[]; userId: string }) {
           </>
         )}
         {tab === "orders" && <OrdersTable orders={orders} refetch={refetch} />}
+        {tab === "analytics" && (
+          <Suspense fallback={<PanelFallback />}>
+            <AnalyticsPanel />
+          </Suspense>
+        )}
+        {tab === "leads" && (
+          <Suspense fallback={<PanelFallback />}>
+            <CheckoutLeadsPanel canEdit={primaryRole !== "viewer"} />
+          </Suspense>
+        )}
         {tab === "products" && canProducts && (
           <Suspense fallback={<PanelFallback />}>
             <ProductsManager />

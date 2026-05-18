@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
 import { Toaster } from "sonner";
 import { Header } from "@/components/store/Header";
 import { Hero } from "@/components/store/Hero";
@@ -7,54 +7,86 @@ import { ProductCard } from "@/components/store/ProductCard";
 import { WhyShop } from "@/components/store/TrustReviews";
 import { DeferRender } from "@/components/DeferRender";
 import { StoreProvider } from "@/lib/store-context";
-
-const QuickView = lazy(() =>
-  import("@/components/store/QuickView").then((m) => ({ default: m.QuickView })),
-);
-const TrustReviews = lazy(() =>
-  import("@/components/store/TrustReviews").then((m) => ({ default: m.TrustReviews })),
-);
-const VideoSection = lazy(() =>
-  import("@/components/store/VideoSection").then((m) => ({ default: m.VideoSection })),
-);
-const FaqSection = lazy(() =>
-  import("@/components/store/FaqSection").then((m) => ({ default: m.FaqSection })),
-);
-const CheckoutForm = lazy(() =>
-  import("@/components/store/CheckoutForm").then((m) => ({ default: m.CheckoutForm })),
-);
-import { useSiteSettings } from "@/lib/site-settings";
+import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import { useI18n } from "@/lib/i18n";
 import { Phone, Mail, MapPin, Facebook, Instagram, Youtube, Twitter, Linkedin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { ProductWithVariants, Category, Brand } from "@/lib/store-types";
 import { cn } from "@/lib/utils";
 
+const QuickView = lazy(() =>
+  import("@/components/store/QuickView").then((m) => ({ default: m.QuickView })),
+);
+
+const TrustReviews = lazy(() =>
+  import("@/components/store/TrustReviews").then((m) => ({ default: m.TrustReviews })),
+);
+
+const VideoSection = lazy(() =>
+  import("@/components/store/VideoSection").then((m) => ({ default: m.VideoSection })),
+);
+
+const FaqSection = lazy(() =>
+  import("@/components/store/FaqSection").then((m) => ({ default: m.FaqSection })),
+);
+
+const CheckoutForm = lazy(() =>
+  import("@/components/store/CheckoutForm").then((m) => ({ default: m.CheckoutForm })),
+);
+
+const HOME_TITLE = "Noor Honey — 100% Pure Bangladeshi Honey";
+const HOME_DESCRIPTION =
+  "Raw, unfiltered honey hand-harvested from the Sundarbans. Cash on delivery across Bangladesh. Order online in 30 seconds.";
+const HOME_URL = "https://basic-e-commerce-site-supabase.vercel.app/";
+const FAVICON_URL = "/noor-honey-favicon.svg";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Noor Honey — 100% Pure Bangladeshi Honey" },
+      { title: HOME_TITLE },
       {
         name: "description",
-        content:
-          "Raw, unfiltered honey hand-harvested from the Sundarbans. Cash on delivery across Bangladesh. Order online in 30 seconds.",
+        content: HOME_DESCRIPTION,
       },
-      { property: "og:title", content: "Noor Honey — 100% Pure Bangladeshi Honey" },
+
+      { property: "og:title", content: HOME_TITLE },
       {
         property: "og:description",
-        content:
-          "Raw, unfiltered honey hand-harvested from the Sundarbans. Cash on delivery across Bangladesh.",
+        content: HOME_DESCRIPTION,
       },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: HOME_URL },
+      { property: "og:site_name", content: "Noor Honey" },
+
+      { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: HOME_TITLE },
+      { name: "twitter:description", content: HOME_DESCRIPTION },
     ],
     links: [
-      { rel: "canonical", href: "https://noorhoney.lovable.app/" },
+      { rel: "canonical", href: HOME_URL },
+      {
+        rel: "icon",
+        type: "image/svg+xml",
+        href: FAVICON_URL,
+      },
+      {
+        rel: "apple-touch-icon",
+        href: FAVICON_URL,
+      },
       {
         rel: "preconnect",
         href: "https://fuzsimcakubybrvfhson.supabase.co",
         crossOrigin: "anonymous",
       },
-      { rel: "preconnect", href: "https://images.unsplash.com", crossOrigin: "anonymous" },
-      { rel: "dns-prefetch", href: "https://images.unsplash.com" },
+      {
+        rel: "preconnect",
+        href: "https://images.unsplash.com",
+        crossOrigin: "anonymous",
+      },
+      {
+        rel: "dns-prefetch",
+        href: "https://images.unsplash.com",
+      },
       {
         rel: "preload",
         as: "image",
@@ -87,13 +119,16 @@ function Store() {
   const [loading, setLoading] = useState(true);
   const [quickView, setQuickView] = useState<ProductWithVariants | null>(null);
   const [delivery, setDelivery] = useState({ inside: 60, outside: 120 });
+
   const { settings } = useSiteSettings();
   const { t } = useI18n();
+
   const brand = settings.brand_name || "Store";
   const initial = brand.trim().charAt(0).toUpperCase() || "S";
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       const [{ data: prods }, { data: vars }, { data: delivRows }, { data: cats }, { data: brs }] =
         await Promise.all([
@@ -106,29 +141,37 @@ function Store() {
           supabase.from("categories").select("*").order("sort_order").order("name"),
           supabase.from("brands").select("*").order("sort_order").order("name"),
         ]);
+
       if (!mounted) return;
+
       const variantsByProduct = new Map<string, ProductWithVariants["variants"]>();
+
       (vars ?? []).forEach((v) => {
         const arr = variantsByProduct.get(v.product_id) ?? [];
         arr.push(v);
         variantsByProduct.set(v.product_id, arr);
       });
+
       const merged = (prods ?? []).map((p) => ({
         ...p,
         gallery: Array.isArray(p.gallery) ? (p.gallery as string[]) : [],
         variants: variantsByProduct.get(p.id) ?? [],
       })) as ProductWithVariants[];
+
       setProducts(merged);
       setCategories((cats ?? []) as Category[]);
       setBrands((brs ?? []) as Brand[]);
 
       const map = new Map((delivRows ?? []).map((s) => [s.key, s.value]));
+
       setDelivery({
         inside: Number(map.get("delivery_inside") ?? 60),
         outside: Number(map.get("delivery_outside") ?? 120),
       });
+
       setLoading(false);
     })();
+
     return () => {
       mounted = false;
     };
@@ -146,6 +189,7 @@ function Store() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+
       <main>
         <Hero />
 
@@ -162,6 +206,7 @@ function Store() {
                   </p>
                 </div>
               </div>
+
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {offers.map((p, i) => (
                   <ProductCard
@@ -188,6 +233,7 @@ function Store() {
                   <h2 className="text-lg font-bold tracking-tight sm:text-xl">
                     {t("section.filters.title")}
                   </h2>
+
                   {filtersActive && (
                     <button
                       onClick={() => {
@@ -206,6 +252,7 @@ function Store() {
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {t("filters.brand")}
                     </div>
+
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => setActiveBrand(null)}
@@ -218,6 +265,7 @@ function Store() {
                       >
                         {t("filters.all_brands")}
                       </button>
+
                       {brands.map((b) => (
                         <button
                           key={b.id}
@@ -249,6 +297,7 @@ function Store() {
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {t("filters.category")}
                     </div>
+
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => setActiveCategory(null)}
@@ -261,6 +310,7 @@ function Store() {
                       >
                         {t("filters.all_categories")}
                       </button>
+
                       {categories.map((c) => (
                         <button
                           key={c.id}
@@ -304,6 +354,7 @@ function Store() {
                   </p>
                 </div>
               </div>
+
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {featured.map((p, i) => (
                   <ProductCard
@@ -330,6 +381,7 @@ function Store() {
                 </h2>
                 <p className="mt-2 text-muted-foreground">{t("section.all.subtitle")}</p>
               </div>
+
               {filtersActive && (
                 <button
                   onClick={() => {
@@ -354,12 +406,14 @@ function Store() {
                 <div className="grid h-16 w-16 place-items-center rounded-full bg-background text-3xl shadow-soft">
                   🔎
                 </div>
+
                 <div className="space-y-1">
                   <h3 className="text-lg font-semibold">{t("empty.title")}</h3>
                   <p className="max-w-sm text-sm text-muted-foreground">
                     {filtersActive ? t("empty.with_filters") : t("empty.no_products")}
                   </p>
                 </div>
+
                 {filtersActive && (
                   <button
                     onClick={() => {
@@ -423,12 +477,14 @@ function Store() {
                   className="h-8 w-8 rounded-lg object-contain"
                 />
               ) : (
-                <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
                   {initial}
                 </div>
               )}
+
               <span className="text-sm font-semibold">{brand}</span>
             </div>
+
             <p className="mt-3 text-xs text-muted-foreground">
               © {new Date().getFullYear()} {brand}. {t("footer.rights")}
             </p>
@@ -439,6 +495,7 @@ function Store() {
           {(settings.contact_phone || settings.contact_email || settings.contact_address) && (
             <div>
               <h4 className="mb-3 text-sm font-semibold">{t("footer.contact")}</h4>
+
               <ul className="space-y-2 text-xs text-muted-foreground">
                 {settings.contact_phone && (
                   <li className="flex items-start gap-2">
@@ -448,6 +505,7 @@ function Store() {
                     </a>
                   </li>
                 )}
+
                 {settings.contact_email && (
                   <li className="flex items-start gap-2">
                     <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -456,9 +514,11 @@ function Store() {
                     </a>
                   </li>
                 )}
+
                 {settings.contact_address && (
                   <li className="flex items-start gap-2">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+
                     {settings.contact_location_url ? (
                       <a
                         href={settings.contact_location_url}
@@ -477,14 +537,14 @@ function Store() {
             </div>
           )}
 
-          <div className="md:text-right">
+          {/* <div className="md:text-right">
             <a
               href="/admin"
               className="text-xs text-muted-foreground underline hover:text-foreground"
             >
               {t("footer.admin")}
             </a>
-          </div>
+          </div> */}
         </div>
       </footer>
 
@@ -513,27 +573,74 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
-function SocialLinks({ settings }: { settings: import("@/lib/site-settings").SiteSettings }) {
-  const items: { url: string; label: string; Icon: React.ComponentType<{ className?: string }> }[] =
-    [];
-  if (settings.social_facebook)
-    items.push({ url: settings.social_facebook, label: "Facebook", Icon: Facebook });
-  if (settings.social_instagram)
-    items.push({ url: settings.social_instagram, label: "Instagram", Icon: Instagram });
-  if (settings.social_youtube)
-    items.push({ url: settings.social_youtube, label: "YouTube", Icon: Youtube });
-  if (settings.social_tiktok)
-    items.push({ url: settings.social_tiktok, label: "TikTok", Icon: TikTokIcon });
-  if (settings.social_twitter)
-    items.push({ url: settings.social_twitter, label: "Twitter / X", Icon: Twitter });
-  if (settings.social_linkedin)
-    items.push({ url: settings.social_linkedin, label: "LinkedIn", Icon: Linkedin });
+function SocialLinks({ settings }: { settings: SiteSettings }) {
+  const items: {
+    url: string;
+    label: string;
+    Icon: ComponentType<{ className?: string }>;
+  }[] = [];
+
+  if (settings.social_facebook) {
+    items.push({
+      url: settings.social_facebook,
+      label: "Facebook",
+      Icon: Facebook,
+    });
+  }
+
+  if (settings.social_instagram) {
+    items.push({
+      url: settings.social_instagram,
+      label: "Instagram",
+      Icon: Instagram,
+    });
+  }
+
+  if (settings.social_youtube) {
+    items.push({
+      url: settings.social_youtube,
+      label: "YouTube",
+      Icon: Youtube,
+    });
+  }
+
+  if (settings.social_tiktok) {
+    items.push({
+      url: settings.social_tiktok,
+      label: "TikTok",
+      Icon: TikTokIcon,
+    });
+  }
+
+  if (settings.social_twitter) {
+    items.push({
+      url: settings.social_twitter,
+      label: "Twitter / X",
+      Icon: Twitter,
+    });
+  }
+
+  if (settings.social_linkedin) {
+    items.push({
+      url: settings.social_linkedin,
+      label: "LinkedIn",
+      Icon: Linkedin,
+    });
+  }
+
   if (settings.social_whatsapp) {
     const raw = settings.social_whatsapp.trim();
     const url = raw.startsWith("http") ? raw : `https://wa.me/${raw.replace(/[^0-9]/g, "")}`;
-    items.push({ url, label: "WhatsApp", Icon: WhatsAppIcon });
+
+    items.push({
+      url,
+      label: "WhatsApp",
+      Icon: WhatsAppIcon,
+    });
   }
+
   if (items.length === 0) return null;
+
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2">
       {items.map(({ url, label, Icon }) => (

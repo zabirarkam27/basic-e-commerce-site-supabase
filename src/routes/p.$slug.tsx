@@ -1,15 +1,23 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Toaster } from "sonner";
 import { ArrowRight, ShieldCheck, Truck, BadgeCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/store/Header";
 import { CheckoutForm } from "@/components/store/CheckoutForm";
 import { FaqSection } from "@/components/store/FaqSection";
+import { ProductDetailGallery } from "@/components/store/ProductDetailGallery";
 import { StoreProvider, smoothScrollTo, useStore } from "@/lib/store-context";
 import { getLandingPageBySlug } from "@/lib/landing.functions";
-import { type ProductWithVariants, type Variant, formatBDT, variantPrice } from "@/lib/store-types";
+import {
+  type ProductWithVariants,
+  type Variant,
+  formatBDT,
+  variantImage,
+  variantPrice,
+} from "@/lib/store-types";
 import { useSiteSettings, applyTracking } from "@/lib/site-settings";
+import { cn } from "@/lib/utils";
 
 type LandingPage = {
   id: string;
@@ -69,6 +77,7 @@ function LandingInner({ slug }: { slug: string }) {
   const { settings } = useSiteSettings();
   const { addItem } = useStore();
   const navigate = useNavigate();
+  const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -135,6 +144,7 @@ function LandingInner({ slug }: { slug: string }) {
           variants: (variants ?? []) as Variant[],
         };
         setProduct(full);
+        setSelectedVariant(full.variants[0] ?? null);
       }
 
       setLoading(false);
@@ -181,14 +191,16 @@ function LandingInner({ slug }: { slug: string }) {
       return;
     }
     if (product) {
-      addItem(product);
+      addItem(product, selectedVariant);
       setTimeout(() => smoothScrollTo("checkout"), 50);
       return;
     }
     navigate({ to: "/" });
   };
 
-  const price = product ? variantPrice(product, product.variants[0] ?? null) : null;
+  const price = product
+    ? variantPrice(product, selectedVariant ?? product.variants[0] ?? null)
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -264,31 +276,13 @@ function LandingInner({ slug }: { slug: string }) {
 
       {/* Product detail */}
       {product && (
-        <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
-              <img
-                src={product.image_url}
-                alt={product.title}
-                className="aspect-square w-full object-cover"
-              />
-            </div>
-            <div className="flex flex-col justify-center">
-              <h2 className="text-3xl font-bold">{product.title}</h2>
-              {product.description && (
-                <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                  {product.description}
-                </p>
-              )}
-              <button
-                onClick={handleCta}
-                className="mt-8 inline-flex w-fit items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-sm font-semibold text-primary-foreground shadow-pop"
-              >
-                {page.cta_text || "Order Now"} <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </section>
+        <ProductDetailSection
+          product={product}
+          selectedVariant={selectedVariant}
+          onVariantChange={setSelectedVariant}
+          onOrder={handleCta}
+          ctaText={page.cta_text || "Order Now"}
+        />
       )}
 
       {/* Checkout (only meaningful when a product is attached and no external CTA link) */}
@@ -303,5 +297,133 @@ function LandingInner({ slug }: { slug: string }) {
         © {new Date().getFullYear()} {settings.brand_name}. All rights reserved.
       </footer>
     </div>
+  );
+}
+
+function isRealColor(hex: string | null | undefined) {
+  const h = (hex ?? "").trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/i.test(h);
+}
+
+function ProductDetailSection({
+  product,
+  selectedVariant,
+  onVariantChange,
+  onOrder,
+  ctaText,
+}: {
+  product: ProductWithVariants;
+  selectedVariant: Variant | null;
+  onVariantChange: (variant: Variant | null) => void;
+  onOrder: () => void;
+  ctaText: string;
+}) {
+  const variantImages = useMemo(
+    () => product.variants.map((v) => v.image_url).filter(Boolean) as string[],
+    [product.variants],
+  );
+  const selectedImage = variantImage(product, selectedVariant);
+  const gallery = useMemo(() => {
+    const images = [selectedImage, ...variantImages, product.image_url, ...product.gallery].filter(
+      Boolean,
+    ) as string[];
+    return [...new Set(images)];
+  }, [product.gallery, product.image_url, selectedImage, variantImages]);
+  const [activeImage, setActiveImage] = useState(selectedImage);
+  const price = variantPrice(product, selectedVariant ?? product.variants[0] ?? null);
+
+  useEffect(() => {
+    setActiveImage(selectedImage);
+  }, [selectedImage]);
+
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+      <div className="grid gap-8 md:grid-cols-[minmax(0,520px)_minmax(0,1fr)] md:items-start">
+        <ProductDetailGallery
+          title={product.title}
+          images={gallery}
+          activeImage={activeImage}
+          onActiveImageChange={setActiveImage}
+        />
+
+        <div className="md:max-h-[calc(100vh-6rem)] md:overflow-y-auto md:pr-2">
+          <div className="flex flex-col justify-center rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6">
+            <h2 className="text-3xl font-bold">{product.title}</h2>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-primary">{formatBDT(price)}</span>
+              {product.regular_price > price && (
+                <span className="text-sm text-muted-foreground line-through">
+                  {formatBDT(product.regular_price)}
+                </span>
+              )}
+            </div>
+
+            {product.variants.length > 0 && (
+              <div className="mt-6 space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Variation
+                  {selectedVariant?.color_name || selectedVariant?.size_label ? (
+                    <span className="ml-2 text-foreground">
+                      {[selectedVariant?.color_name, selectedVariant?.size_label]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {product.variants.map((variant, index) => {
+                    const image = variant.image_url ?? product.gallery[index] ?? product.image_url;
+                    const active = selectedVariant?.id === variant.id;
+                    return (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => {
+                          onVariantChange(variant);
+                          setActiveImage(image);
+                        }}
+                        className={cn(
+                          "flex items-center gap-2 rounded-full border bg-card px-2 py-1.5 text-sm transition hover:border-primary/50",
+                          active ? "border-primary ring-coral" : "border-border",
+                        )}
+                      >
+                        <span
+                          className="h-8 w-8 overflow-hidden rounded-full border border-border bg-secondary"
+                          style={{
+                            backgroundColor: isRealColor(variant.color_hex)
+                              ? (variant.color_hex ?? undefined)
+                              : undefined,
+                          }}
+                        >
+                          {!isRealColor(variant.color_hex) && (
+                            <img src={image} alt="" className="h-full w-full object-cover" />
+                          )}
+                        </span>
+                        <span className="max-w-32 truncate">
+                          {[variant.color_name, variant.size_label].filter(Boolean).join(" / ") ||
+                            `Option ${index + 1}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {product.description && (
+              <p className="mt-6 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                {product.description}
+              </p>
+            )}
+            <button
+              onClick={onOrder}
+              className="mt-8 inline-flex w-fit items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-sm font-semibold text-primary-foreground shadow-pop"
+            >
+              {ctaText} <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
